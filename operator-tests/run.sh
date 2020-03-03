@@ -5,6 +5,38 @@ STARTTIME=$(date +%s)
 TEST_DIR=$(readlink -f `dirname "${BASH_SOURCE[0]}"`)
 export TEST_DIR
 source $TEST_DIR/common
+source $TEST_DIR/util
+
+# Track whether we have a valid oc login
+check_ocp
+
+function help() {
+    echo "usage: run.sh [-h] [regexp]"
+    echo
+    echo "Run tests in subdirectories under $TEST_DIR."
+    echo
+    echo "If there is a current openshift login, set the project to the name of each subdirectory"
+    echo "under $TEST_DIR before running tests in that subdirectory."
+    echo
+    echo "Options:"
+    echo "  -h       Print this help message"
+    echo
+    echo "Optional arguments:"
+    echo "  regexp   Only run test files whose absolute path matches regexp"
+    echo
+}
+
+while getopts h option; do
+    case $option in
+        h)
+            help
+            exit 0
+            ;;
+        *)
+            ;;
+    esac
+done
+shift $((OPTIND-1))
 
 os::util::environment::setup_time_vars
 
@@ -47,11 +79,10 @@ function find_tests() {
     fi
 }
 
+set_curr_project
 
-orig_project=$(oc project -q)
 failed_list=""
 failed=false
-
 dirs=($(find "${TEST_DIR}" -mindepth 1 -type d -not -path "./resources*"))
 for dir in "${dirs[@]}"; do
 
@@ -59,7 +90,7 @@ for dir in "${dirs[@]}"; do
 
     # Get the list of test files in the current directory
     set +e
-    output=$(find_tests $dir ${1:-.*})
+    output=$(find_tests $dir ${1:-.*} | xargs -n1 | sort)
     res=$?
     set -e
     if [ "$res" -ne 0 ]; then
@@ -73,14 +104,8 @@ for dir in "${dirs[@]}"; do
         continue
     fi
 
-    # Create the project here
-    name=$(basename ${dir} .sh)
-    set +e # For some reason the result here from head is not 0 even though we get the desired result
-    namespace=${name}-$(date -Ins | md5sum | tr -dc 'a-z0-9' | fold -w 6 | head -n 1)
-    set -e
-    oc new-project $namespace &> /dev/null
     echo "++++++ ${dir}"
-    echo Using project $namespace
+    go_to_project $(basename $dir)
 
     for test in "${tests[@]}"; do
         echo
@@ -92,14 +117,10 @@ for dir in "${dirs[@]}"; do
             failed_list=$failed_list'\n\t'$test
         fi
     done
-    if [ "$failed_dir" == true -a ${S2I_SAVE_FAIL:-false} == true ]; then
-        echo Leaving project $namespace because of failures
-    else
-        oc delete project $namespace
-    fi
 done
 
-oc project $orig_project
+restore_curr_project
+
 if [ "$failed" == true ]; then
     echo "One or more tests failed:"
     echo -e $failed_list'\n'
