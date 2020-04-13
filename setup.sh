@@ -145,7 +145,13 @@ function installop() {
 function addtestdir() {
     if [ ! -d operator-tests/$1 ]; then
 	echo ++++++++++++++ Cloning test repository for $1 ++++++++++++++
-        git clone $2 operator-tests/$1
+        if [ -n "$3" ]; then
+           echo git clone $2 --branch $3 operator-tests/$1
+           git clone $2 --branch $3 operator-tests/$1
+        else
+           echo git clone $2 operator-tests/$1
+           git clone $2 operator-tests/$1
+        fi
     fi
 }
 
@@ -191,8 +197,12 @@ do
   fi
 
   # clone a specific repository for tests if one is listed
+  branch=""
   if [ "${#vals[@]}" -gt 2 ]; then
-      addtestdir ${vals[0]} ${vals[2]}
+      if [ "${#vals[@]}" -gt 3 ]; then
+          branch=${vals[3]}
+      fi
+      addtestdir ${vals[0]} ${vals[2]} $branch
   fi
 done < "$1"
 restore_curr_project

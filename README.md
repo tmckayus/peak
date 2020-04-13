@@ -69,13 +69,13 @@ and re-creating those namespaces.
 The operator file contains space-separated tuples, one per line:
 
 ```bash
-OPERATOR_NAME DISTRIBUTION_CHANNEL [GIT_TEST_REPOSITORY]
+OPERATOR_NAME DISTRIBUTION_CHANNEL [GIT_TEST_REPOSITORY] [GIT_BRANCH]
 ```
 
 for example
 
 ```bash
-radanalytics-spark alpha https://github.com/tmckayus/rad-spark-tests
+radanalytics-spark alpha https://github.com/tmckayus/rad-spark-tests v1
 ```
 
 This tuple would cause setup.sh to do the following:
@@ -88,8 +88,9 @@ This tuple would cause setup.sh to do the following:
   operator first if *-d* is set.
 
 * Clone the *tmckayus/rad-spark-tests* repository from github into the
-  *operator-tests/radanalytics-spark* subdirectory. The setup.sh script
-  will not overwrite the test subdirectory if it exists.
+  *operator-tests/radanalytics-spark* subdirectory and set the current branch
+  to v1 instead of the default branch. The setup.sh script will not overwrite the
+  test subdirectory if it exists.
 
 ### Notes on OPERATOR_FILE entries
 
@@ -101,6 +102,10 @@ This tuple would cause setup.sh to do the following:
   value has no effect
 
 * The git test repository is optional
+
+* The branch value for the test repository is optional. Naming a branch that
+  does not exist will cause the clone to fail, and the error will be visible
+  in the console.
 
 ### Running outside of OpenShift
 
