@@ -57,7 +57,7 @@ The setup.sh script does several things to set up a test run:
 ### usage of setup.sh
 
 ```bash
-setup.sh [-d] OPERATOR_FILE
+setup.sh [-d|-D] OPERATOR_FILE
 ```
 
 The *-d* flag optionally causes setup.sh to uninstall any specified operators
