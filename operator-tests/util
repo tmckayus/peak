@@ -35,6 +35,18 @@ function go_to_project() {
     fi
 }
 
+function del_project() {
+    if [ "$OCP" -eq 0 ]; then
+        set +e
+        oc get project $1 &>/dev/null
+        if [ "$?" -eq 0 ]; then
+            echo "Deleting project $1"
+            oc delete project $1 &>/dev/null
+        fi
+        set -e
+    fi
+}
+
 function clean_project() {
     if [ "$OCP" -eq 0 ]; then
         set +e

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function help() {
-    echo "usage: setup.sh [-d] FILE"
+    echo "usage: setup.sh [-d|-D] FILE"
     echo
     echo "Required:"
     echo "  FILE     a file of 'operatorname channel github' space-separated triplets, one per line"
@@ -10,7 +10,8 @@ function help() {
     echo "Options:"
     echo "  -d       delete projects (corresponding to operatorname) to make sure they are clean"
     echo "           before running tests. For operators this will also cause the operator to be"
-    echo "           reinstalled"
+    echo "           reinstalled. Mutually exclusive with -D."
+    echo "  -D       delete projects and uninstall operators, do not reinstall. Mutually exclusive with -d."
 }
 
 function set_project() {
@@ -56,7 +57,13 @@ function installop() {
     # Note that in the case of an operator in a single namespace,
     # the operator group and subscription will be created here.
 
-    echo ++++++++++++++ Setting up operator $1 and creating namespace ++++++++++++++
+    if [ "$delonly" == "true" ]; then
+        echo Uninstalling operator $1 and deleting namespace
+    elif [ "$delproj" == "true" ]; then
+        echo Re-installing operator $1 and re-creating namespace
+    else
+        echo Installing operator $1 and creating namespace
+    fi
 
     # If there is a manifest, we can install the operator (and we might have previously)
     installMode=""
@@ -73,6 +80,10 @@ function installop() {
 	if [ "$manifest_present" -eq 0 ]; then
 	    echo Attempting to uninstall operator $1
 	    delete_operator $1 $installMode
+        fi
+        if [ "$delonly" == "true" ]; then
+            del_project $1
+            return 0
         fi
         clean_project $1
     else
@@ -144,7 +155,7 @@ function installop() {
 
 function addtestdir() {
     if [ ! -d operator-tests/$1 ]; then
-	echo ++++++++++++++ Cloning test repository for $1 ++++++++++++++
+	echo Cloning test repository for $1
         if [ -n "$3" ]; then
            echo git clone $2 --branch $3 operator-tests/$1
            git clone $2 --branch $3 operator-tests/$1
@@ -152,6 +163,8 @@ function addtestdir() {
            echo git clone $2 operator-tests/$1
            git clone $2 operator-tests/$1
         fi
+    else
+	echo Test repository exists for $1, skipping clone
     fi
 }
 
@@ -160,12 +173,21 @@ function addtestdir() {
 # Track whether we have a valid oc login
 source operator-tests/util
 check_ocp
-
 delproj=false
-while getopts dh option; do
+delonly=false
+bigd=false
+littled=false
+while getopts Ddh option; do
     case $option in
-        d)
+        D)
+            bigd=true
             delproj=true
+            delonly=true
+            ;;
+        d)
+            littled=true
+            delproj=true
+            delonly=false
             ;;
         h)
             help
@@ -180,11 +202,22 @@ if [ "$#" -lt 1 ]; then
     help
     exit 0
 fi
+if [ "$bigd" == "true" -a "$littled" == "true" ]; then
+    echo "Options are mutually exclusive"
+    help
+    exit -1
+fi
 
 set_curr_project
+if [ "$OCP" -ne 0 ]; then
+  echo "No active openshift login, skipping operator installs"
+fi
 while IFS= read -r line
 do
   vals=($line)
+
+
+  echo ++++++++++++++ Processing entry for operator "${vals[0]}" ++++++++++++++
 
   if [ "${#vals[@]}" -lt 2 ]; then
       echo "Invalid tuple '${vals[@]}' in $1, skipping"
@@ -194,6 +227,9 @@ do
   # If we have an oc login, install the operators
   if [ "$OCP" -eq 0 ]; then
       installop ${vals[@]:0:2}
+  fi
+  if [ "$delonly" == "true" ]; then
+      continue
   fi
 
   # clone a specific repository for tests if one is listed

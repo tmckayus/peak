@@ -64,6 +64,11 @@ The *-d* flag optionally causes setup.sh to uninstall any specified operators
 and delete namespaces named for the operators before re-installing
 and re-creating those namespaces.
 
+The *-D* flag optionally causes setup.sh to uninstall any specified operators
+and delete namespaces named for the operators, without reinstalling anything.
+This is a useful cleanup option to leave a system as you found it. Be careful,
+if an operator was already installed before you started, it will be removed!
+
 ### OPERATOR_FILE
 
 The operator file contains space-separated tuples, one per line:
