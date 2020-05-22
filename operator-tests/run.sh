@@ -1,17 +1,11 @@
 #!/bin/bash
 STARTTIME=$(date +%s)
-
-# Sourcing common will source test/lib/init.sh
+output=
 TEST_DIR=$(readlink -f `dirname "${BASH_SOURCE[0]}"`)
 export TEST_DIR
-source $TEST_DIR/common
-source $TEST_DIR/util
-
-# Track whether we have a valid oc login
-check_ocp
 
 function help() {
-    echo "usage: run.sh [-h] [regexp]"
+    echo "usage: run.sh [-h] [-f FILE] [regexp]"
     echo
     echo "Run tests in subdirectories under $TEST_DIR."
     echo
@@ -20,23 +14,39 @@ function help() {
     echo
     echo "Options:"
     echo "  -h       Print this help message"
+    echo "  -f FILE  Redirect all output to FILE"
     echo
     echo "Optional arguments:"
     echo "  regexp   Only run test files whose absolute path matches regexp"
     echo
 }
 
-while getopts h option; do
+while getopts hf: option; do
     case $option in
         h)
             help
             exit 0
             ;;
+	f)
+	    output=$OPTARG
+	    ;;
         *)
             ;;
     esac
 done
 shift $((OPTIND-1))
+
+if [ -n "$output" ]; then
+    exec > ${output}
+    exec 2>&1
+fi
+
+# Sourcing common will source test/lib/init.sh
+source $TEST_DIR/common
+source $TEST_DIR/util
+
+# Track whether we have a valid oc login
+check_ocp
 
 os::util::environment::setup_time_vars
 
