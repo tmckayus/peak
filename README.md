@@ -38,13 +38,13 @@ The setup.sh script does several things to set up a test run:
   setup.sh is run (so it is possible to test custom operators
   as well as certified or community operators, etc)
   
-* Creates a namespace with the same name as the operator. This
+* Creates a namespace with a name based on the operator. This
   namespace will be used to run tests.
 
 * Installs operators based on available install mode. Operators
   that can run globally will be installed in openshift-operators,
   operators that must run in a single namespace will run in the
-  namespace named for the operator.
+  namespace created for tests.
 
 * Clones a git repository containing tests for the operator if
   specified. The tests will be stored in a subdirectory under
@@ -54,10 +54,13 @@ The setup.sh script does several things to set up a test run:
   operators to be re-installed and the associated namespaces to
   be recreated. This guarantees a clean test run.
 
+* Optionally supports a -D flag which delete operators and namespaces
+  for cleanup.
+
 ### usage of setup.sh
 
 ```bash
-setup.sh [-d|-D] OPERATOR_FILE
+setup.sh [-d|-D] [-pto] OPERATOR_FILE
 ```
 
 The *-d* flag optionally causes setup.sh to uninstall any specified operators
@@ -65,9 +68,12 @@ and delete namespaces named for the operators before re-installing
 and re-creating those namespaces.
 
 The *-D* flag optionally causes setup.sh to uninstall any specified operators
-and delete namespaces named for the operators, without reinstalling anything.
+and delete the associated namespaces, without reinstalling anything.
 This is a useful cleanup option to leave a system as you found it. Be careful,
 if an operator was already installed before you started, it will be removed!
+
+The "-pto" options optionally let you control what setup.sh will manage
+(projets, tests, and operators). The default is all three.
 
 ### OPERATOR_FILE
 
@@ -85,11 +91,11 @@ radanalytics-spark alpha https://github.com/tmckayus/rad-spark-tests v1
 
 This tuple would cause setup.sh to do the following:
 
-* Create the *radanalytics-spark* namespace. Delete it first if *-d* is set.
+* Create a *radanalytics-spark-xxxx* namespace. Delete it first if *-d* is set.
 
 * Install the *radanalytics-spark* operator from the *alpha* channel using the OLM
   Since radanalytics-spark can be installed globally, it will be installed in the
-  *openshift-operators* namespace instead of *radanalytics-spark*. Uninstall the
+  *openshift-operators* namespace instead of *radanalytics-spark-xxx*. Uninstall the
   operator first if *-d* is set.
 
 * Clone the *tmckayus/rad-spark-tests* repository from github into the
@@ -127,7 +133,7 @@ the *operator-tests* directory. The search will be recursive, so test subdirecto
 may contain subdirectories.
 
 For each top-level subdirectory, if there there is a current OpenShift login, the script
-will set the project to the name of the subdirectory.
+will set the project to the namespace associated with the name of the subdirectory.
 
 Within a particular test subdirectory, files will be executed in alphabetical order.
 This can be particularly useful for applications that are not installed as operators --

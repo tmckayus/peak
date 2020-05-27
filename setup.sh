@@ -1,71 +1,64 @@
 #!/bin/bash
 
 function help() {
-    echo "usage: setup.sh [-d|-D] FILE"
+    echo "usage: setup.sh [-d|-D] [-pto] FILE"
     echo
     echo "Required:"
     echo "  FILE     a file of 'operatorname channel github' space-separated triplets, one per line"
     echo "           Check the README.md for more information."
     echo
     echo "Options:"
-    echo "  -d       delete projects (corresponding to operatorname) to make sure they are clean"
-    echo "           before running tests. For operators this will also cause the operator to be"
-    echo "           reinstalled. Mutually exclusive with -D."
-    echo "  -D       delete projects and uninstall operators, do not reinstall. Mutually exclusive with -d."
-}
-
-function set_project() {
-    if [ "$OCP" -eq 0 ]; then
-        orig_project=$(oc project -q)
-    fi
-}
-
-function restore_project() {
-    if [ "$OCP" -eq 0 ]; then
-        oc project $orig_project
-    fi
+    echo
+    echo "  -p       command will affect projects"
+    echo "  -t       command will affect test subdirectories"
+    echo "  -o       command will affect operators"
+    echo
+    echo "   The default behavior without any of the above options is '-pto'. If any of the"
+    echo "   three options are specified, then only those specified will be set"
+    echo
+    echo "  -d       delete and recreate projects and operators, mutually exclusive with -D."
+    echo "  -D       delete projects and operators, mutually exclusive with -d. Also skips git clone."
 }
 
 function delete_operator() {
+    local namespace
     if [ "$2" == "true" ]; then
 	# we installed this globally in openshift-operators
         namespace=openshift-operators
     else
-	namespace=$1
+	# If there's no project, there can't be an operator there
+	namespace=$(find_project $1)
+	if [ "$namespace" == "" ]; then
+	    echo Operator $1 not found, nothing to delete
+	    return 0
+	fi
     fi
     set +e
-    csv=$(oc get subscription $1 -n $namespace -o=jsonpath="{.status.currentCSV}")
+    csv=$(oc get subscription -l peak.test.subscription=$1 -n $namespace -o=jsonpath="{.items[0].status.currentCSV}" 2>/dev/null)
     if [ "$?" -eq 0 ]; then
-        oc delete subscription $1 -n $namespace
+	echo Attempting to uninstall operator $1
+        oc delete subscription -l peak.test.subscription=$1 -n $namespace
         oc delete clusterserviceversion $csv -n $namespace
+	if [ "$2" == "false" ]; then
+	    oc delete operatorgroup -l peak.test.operatorgroup=$1 -n $namespace
+	fi
+    else
+	echo Operator $1 not found, nothing to delete
     fi
     set -e
 }
 
-function installop() {
-    # $1 operator name
-    # $2 channel
-
-    # We'll make a namespace from the name because later we'll want to
-    # run tests here anyway regardless of whether or not it's an actual
-    # operator or something deployed from manifests.
-
-    # The subdirectory holding the git test repo will also be given
-    # this name. The test runner will use the directory name as
-    # the namespace.
-
-    # Note that in the case of an operator in a single namespace,
-    # the operator group and subscription will be created here.
-
-    if [ "$delonly" == "true" ]; then
-        echo Uninstalling operator $1 and deleting namespace
-    elif [ "$delproj" == "true" ]; then
-        echo Re-installing operator $1 and re-creating namespace
+function handleproj() {
+    if [ "$delete" == "true" ]; then
+        del_project $1
+    elif [ "$recreate" == "true" ]; then
+        clean_project $1
     else
-        echo Installing operator $1 and creating namespace
+	make_project $1
     fi
+}
 
-    # If there is a manifest, we can install the operator (and we might have previously)
+function getmanifest() {
     installMode=""
     set +e
     oc get packagemanifest $1 &> /dev/null
@@ -74,28 +67,23 @@ function installop() {
         installMode=$(oc get packagemanifest $1 -o=jsonpath="{.status.channels[?(@.name==\"$2\")].currentCSVDesc.installModes[?(@.type==\"AllNamespaces\")].supported}")
     fi
     set -e
+}
 
-    # If delproj is set, delete the namespace and uninstall the operator
-    if [ "$delproj" == "true" ]; then
-	if [ "$manifest_present" -eq 0 ]; then
-	    echo Attempting to uninstall operator $1
-	    delete_operator $1 $installMode
-        fi
-        if [ "$delonly" == "true" ]; then
-            del_project $1
-            return 0
-        fi
-        clean_project $1
-    else
-        go_to_project $1
-    fi
+function installop() {
+    # $1 operator name
+    # $2 channel
 
+    # Note that in the case of an operator in a single namespace,
+    # the operator group and subscription will be created here.
     if [ "$manifest_present" -ne 0 ]; then
-        echo operator manifest not present for $1, skipping install
-        return
-    else
-        echo operator manifest found for $1
+        echo "operator manifest not present for $1, skipping install"
+        return 0
     fi
+
+    # testproj is based on the operator name with a random string,
+    # we'll use it to name subscriptions etc too
+    local testproj
+    testproj=$(find_project $1)
 
     # Look up the specified channel and find the catalog source
     csource=$(oc get packagemanifest $1 -o=jsonpath="{.status.catalogSource}")
@@ -107,33 +95,47 @@ function installop() {
     if [ "$installMode" == "true" ]; then
         echo "install $1 in namespace openshift-operators"
 
-        # create a subscription object
+	# For global operators we're just using testproj for a name, so make
+	# one if we have not created the project
+        if [ "$testproj" == "" ]; then
+	    testproj=$(random_name $1)
+	fi
+
         cat <<- EOF | oc create -f -
 	apiVersion: operators.coreos.com/v1alpha1
 	kind: Subscription
 	metadata:
-	  name: $1
+	  name: $testproj
 	  namespace: openshift-operators
+	  labels:
+	     peak.test.subscription: $1
 	spec:
 	  channel: $2
 	  name: $1
 	  source: $csource
 	  sourceNamespace: $csourcens
 	EOF
-
     else
-        echo "install $1 in namespace $1"
+	# make sure project exists since we can decouple project and operator creation
+        if [ "$testproj" == "" ]; then
+	    echo "project for $1 does not exist, skipping operator install"
+	    return 0
+	fi
+
+        echo "install $1 in namespace $testproj"
 
         # in this case we need to make an operator group in the new project
         cat <<- EOF | oc create -f -
 	apiVersion: operators.coreos.com/v1
 	kind: OperatorGroup
 	metadata:
-	  name: "$1"
-	  namespace: "$1"
+	  name: "$testproj"
+	  namespace: "$testproj"
+	  labels:
+	     peak.test.operatorgroup: $1
 	spec:
 	  targetNamespaces:
-	  - "$1"
+	  - "$testproj"
 	EOF
 
         # create a subscription object
@@ -141,8 +143,10 @@ function installop() {
 	apiVersion: operators.coreos.com/v1alpha1
 	kind: Subscription
 	metadata:
-	  name: $1
-	  namespace: $1
+	  name: $testproj
+	  namespace: $testproj
+	  labels:
+	     peak.test.subscription: $1
 	spec:
 	  channel: $2
 	  name: $1
@@ -168,77 +172,115 @@ function addtestdir() {
     fi
 }
 
-################ Main script ################
+delete=false
+recreate=false
 
-# Track whether we have a valid oc login
-source operator-tests/util
-check_ocp
-delproj=false
-delonly=false
-bigd=false
-littled=false
-while getopts Ddh option; do
+everything=true
+projects=false
+operators=false
+tests=false
+manifest_present=-1
+installMode=
+
+while getopts Ddhpto option; do
     case $option in
         D)
-            bigd=true
-            delproj=true
-            delonly=true
+            delete=true
             ;;
         d)
-            littled=true
-            delproj=true
-            delonly=false
+            recreate=true
             ;;
         h)
             help
             exit 0
             ;;
+	p)
+	    everything=false
+	    projects=true
+	    ;;
+	t)
+	    everything=false
+	    tests=true
+	    ;;
+	o)
+	    everything=false
+	    operators=true
+	    ;;
         *)
            ;;
     esac
 done
+
+# The last argument is the name of the operator file
 shift $((OPTIND-1))
 if [ "$#" -lt 1 ]; then
     help
     exit 0
 fi
-if [ "$bigd" == "true" -a "$littled" == "true" ]; then
-    echo "Options are mutually exclusive"
+
+if [ "$delete" == "true" -a "$recreate" == "true" ]; then
+    echo "Options -d and -D are mutually exclusive"
     help
     exit -1
 fi
 
-set_curr_project
-if [ "$OCP" -ne 0 ]; then
-  echo "No active openshift login, skipping operator installs"
+if [ "$everything" == "true" ]; then
+    tests=true
+    projects=true
+    operators=true
 fi
+
+# Track whether we have a valid oc login
+source operator-tests/util
+check_ocp
+
+# We have to have a login for operators and projects
+if [ "$operators" == "true" -o "$projects" == "true" ]; then
+    if [ "$OCP" -ne 0 ]; then
+        echo "No active openshift login, can't set up projects or operators, exiting."
+        echo "To clone test subdirectories without an openshift login, run with the just '-t' option."
+        exit 0
+    fi
+fi
+
 while IFS= read -r line
 do
-  vals=($line)
+    vals=($line)
 
+    echo ++++++++++++++ Processing entry for operator "${vals[0]}" ++++++++++++++
 
-  echo ++++++++++++++ Processing entry for operator "${vals[0]}" ++++++++++++++
+    if [ "${#vals[@]}" -lt 2 ]; then
+        echo "Invalid tuple '${vals[@]}' in $1, skipping"
+        continue
+    fi
 
-  if [ "${#vals[@]}" -lt 2 ]; then
-      echo "Invalid tuple '${vals[@]}' in $1, skipping"
-      continue
-  fi
+    if [ "$operators" == "true" ]; then
+	getmanifest ${vals[@]:0:2}
+    fi
 
-  # If we have an oc login, install the operators
-  if [ "$OCP" -eq 0 ]; then
-      installop ${vals[@]:0:2}
-  fi
-  if [ "$delonly" == "true" ]; then
-      continue
-  fi
+    # Uninstall the operator in the delete or recreate case
+    if [ "$delete" == "true" -o "$recreate" == "true" ] && [ "$manifest_present" -eq 0 -a "$operators" == "true" ]; then
+	delete_operator ${vals[0]} $installMode
+    fi
 
-  # clone a specific repository for tests if one is listed
-  branch=""
-  if [ "${#vals[@]}" -gt 2 ]; then
-      if [ "${#vals[@]}" -gt 3 ]; then
-          branch=${vals[3]}
-      fi
-      addtestdir ${vals[0]} ${vals[2]} $branch
-  fi
+    # Use vals[0] for the project name because that's the base and we may not have made it yet
+    if [ "$projects" == "true" ]; then
+        handleproj ${vals[0]} $installMode
+    fi
+
+    # install operator if we're (re)creating
+    if [ "$operators" == "true" -a "$delete" == "false" ]; then
+        installop ${vals[@]:0:2}
+    fi
+
+    # clone a specific repository for tests if one is listed
+    if [ "$tests" == "true" -a "$delete" == "false" ]; then
+        branch=""
+        if [ "${#vals[@]}" -gt 2 ]; then
+            if [ "${#vals[@]}" -gt 3 ]; then
+                branch=${vals[3]}
+            fi
+            addtestdir ${vals[0]} ${vals[2]} $branch
+        fi
+    fi
 done < "$1"
-restore_curr_project
