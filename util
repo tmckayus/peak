@@ -9,14 +9,21 @@ function check_ocp() {
 }
 
 function set_curr_project() {
+    set +e
     if [ "$OCP" -eq 0 ]; then
         orig_project=$(oc project -q)
+        if [ "$?" -ne 0 ]; then
+            orig_project=
+        fi
     fi
+    set -e
 }
 
 function restore_curr_project() {
-    if [ "$OCP" -eq 0 ]; then
+    if [ -n "$orig_project" ]; then
+        set +e
         oc project $orig_project
+        set -e
     fi
 }
 
