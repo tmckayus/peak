@@ -126,7 +126,7 @@ If there is no current OpenShift login, *setup.sh*
 * will not try to create any namespaces
 * WILL clone the test repositories
 
-## operator-tests/run.sh script
+## run.sh script
 
 The *run.sh* script will run test files ending in *.sh* in subdirectories under
 the *operator-tests* directory. The search will be recursive, so test subdirectories
@@ -142,7 +142,7 @@ just make the alphabetically first file in the directory an install script for t
 ### usage
 
 ```bash
-operator-tests/run.sh [regexp]
+run.sh [regexp]
 ```
 
 If *regexp* is supplied, it will be a regular expression filter on the absolute path of
@@ -160,9 +160,7 @@ the test files.
 ### TEST_DIR environment variable
 
 The $TEST_DIR environment variable in your test scripts
-will point to the directory where *run.sh* is located
-(that is, *operator-tests*). This env var can be used
-to reference the root of the test hierarchy
+will point to the *operator-tests* subdirectory.
 
 ### operator-tests/common
 
