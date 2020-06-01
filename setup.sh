@@ -1,5 +1,7 @@
 #!/bin/bash
 
+SCRIPT_DIR=$(readlink -f `dirname "${BASH_SOURCE[0]}"`)
+
 function help() {
     echo "usage: setup.sh [-d|-D] [-pto] FILE"
     echo
@@ -158,14 +160,14 @@ function installop() {
 }
 
 function addtestdir() {
-    if [ ! -d operator-tests/$1 ]; then
+    if [ ! -d $SCRIPT_DIR/operator-tests/$1 ]; then
 	echo Cloning test repository for $1
         if [ -n "$3" ]; then
-           echo git clone $2 --branch $3 operator-tests/$1
-           git clone $2 --branch $3 operator-tests/$1
+           echo git clone $2 --branch $3 $SCRIPT_DIR/operator-tests/$1
+           git clone $2 --branch $3 $SCRIPT_DIR/operator-tests/$1
         else
-           echo git clone $2 operator-tests/$1
-           git clone $2 operator-tests/$1
+           echo git clone $2 $SCRIPT_DIR/operator-tests/$1
+           git clone $2 $SCRIPT_DIR/operator-tests/$1
         fi
     else
 	echo Test repository exists for $1, skipping clone
@@ -231,7 +233,7 @@ if [ "$everything" == "true" ]; then
 fi
 
 # Track whether we have a valid oc login
-source operator-tests/util
+source $SCRIPT_DIR/util
 check_ocp
 
 # We have to have a login for operators and projects

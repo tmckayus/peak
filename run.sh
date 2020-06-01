@@ -1,7 +1,8 @@
 #!/bin/bash
 STARTTIME=$(date +%s)
 output=
-TEST_DIR=$(readlink -f `dirname "${BASH_SOURCE[0]}"`)
+SCRIPT_DIR=$(readlink -f `dirname "${BASH_SOURCE[0]}"`)
+TEST_DIR=$SCRIPT_DIR/operator-tests
 export TEST_DIR
 
 function help() {
@@ -43,7 +44,7 @@ fi
 
 # Sourcing common will source test/lib/init.sh
 source $TEST_DIR/common
-source $TEST_DIR/util
+source $SCRIPT_DIR/util
 
 # Track whether we have a valid oc login
 check_ocp
