@@ -9,6 +9,7 @@ function check_ocp() {
 }
 
 function set_curr_project() {
+    orig_project=
     set +e
     if [ "$OCP" -eq 0 ]; then
         orig_project=$(oc project -q)
@@ -20,7 +21,7 @@ function set_curr_project() {
 }
 
 function restore_curr_project() {
-    if [ -n "$orig_project" ]; then
+    if [ ! -z ${orig_project} ]; then
         set +e
         oc project $orig_project
         set -e

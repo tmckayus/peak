@@ -101,12 +101,14 @@ for dir in "${dirs[@]}"; do
 
     # Get the list of test files in the current directory
     set +e
-    output=$(find_tests $dir ${1:-.*} | xargs -n1 | sort)
+    output=$(find_tests $dir ${1:-.*})
     res=$?
     set -e
     if [ "$res" -ne 0 ]; then
         echo $output
         continue
+    else
+        output=$(echo $output | xargs -n1 | sort)
     fi
 
     # Turn the list of tests into an array and check the length, skip if zero
