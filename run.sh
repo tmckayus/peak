@@ -1,6 +1,9 @@
 #!/bin/bash
 STARTTIME=$(date +%s)
 output=
+debug=false
+makeproj=true
+
 SCRIPT_DIR=$(readlink -f `dirname "${BASH_SOURCE[0]}"`)
 TEST_DIR=$SCRIPT_DIR/operator-tests
 export TEST_DIR
@@ -11,18 +14,20 @@ function help() {
     echo "Run tests in subdirectories under $TEST_DIR."
     echo
     echo "If there is a current openshift login, set the project to the name of each subdirectory"
-    echo "under $TEST_DIR before running tests in that subdirectory."
+    echo "under $TEST_DIR before running tests in that subdirectory unless -p is set."
     echo
     echo "Options:"
     echo "  -h       Print this help message"
     echo "  -f FILE  Redirect all output to FILE"
+    echo "  -d       Debug, set -x (large amount of output)"
+    echo "  -p       Do not create a new project per test directory"
     echo
     echo "Optional arguments:"
     echo "  regexp   Only run test files whose absolute path matches regexp"
     echo
 }
 
-while getopts hf: option; do
+while getopts dphf: option; do
     case $option in
         h)
             help
@@ -31,6 +36,12 @@ while getopts hf: option; do
 	f)
 	    output=$OPTARG
 	    ;;
+        d)
+            debug=true
+            ;;
+        p)
+            makeproj=false
+            ;;
         *)
             ;;
     esac
@@ -40,6 +51,10 @@ shift $((OPTIND-1))
 if [ -n "$output" ]; then
     exec > ${output}
     exec 2>&1
+fi
+
+if [ "$debug" == "true" ]; then
+    set -x
 fi
 
 # Sourcing common will source test/lib/init.sh
@@ -90,7 +105,10 @@ function find_tests() {
     fi
 }
 
-set_curr_project
+
+if [ "$makeproj" == "true" ]; then
+    set_curr_project
+fi
 
 failed_list=""
 failed=false
@@ -118,7 +136,9 @@ for dir in "${dirs[@]}"; do
     fi
 
     echo "++++++ ${dir}"
-    go_to_project $(basename $dir)
+    if [ "$makeproj" == "true" ]; then
+        go_to_project $(basename $dir)
+    fi
 
     for test in "${tests[@]}"; do
         echo
@@ -132,7 +152,9 @@ for dir in "${dirs[@]}"; do
     done
 done
 
-restore_curr_project
+if [ "$makeproj" == "true" ]; then
+    restore_curr_project
+fi
 
 if [ "$failed" == true ]; then
     echo "One or more tests failed:"
