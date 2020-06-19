@@ -143,7 +143,10 @@ for dir in "${dirs[@]}"; do
     for test in "${tests[@]}"; do
         echo
         echo "++++ ${test}"
-        if ! ${test}; then
+        ${test} &
+        PID=$!
+        wait $PID
+        if [ "$?" -ne 0 ]; then
             echo "failed: ${test}"
             failed=true
             failed_dir=true
