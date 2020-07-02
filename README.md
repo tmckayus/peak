@@ -74,6 +74,10 @@ spec:
 
 ### Running test image from operator-sdk alpha scorecard
 
+The *scorecard* script in the test image wraps a call to *run.sh* and produces JSON output that can
+be consumed by the operator-sdk scorecard command. Run the test image with the *usage* command as shown
+above to see options to *scorecard*.
+
 Visit https://sdk.operatorframework.io/docs for complete information on using a test image with the scorecard command,
 including how to create a real bundle directory, etc.
 
