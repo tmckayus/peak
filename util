@@ -23,7 +23,7 @@ function set_curr_project() {
 function restore_curr_project() {
     if [ ! -z ${orig_project} ]; then
         set +e
-        oc project $orig_project
+        oc project $orig_project > /dev/null
         set -e
     fi
 }
@@ -47,9 +47,8 @@ function random_name() {
 }
 
 function make_project_body() {
-    echo "Creating namespace $1"
-    oc create namespace "$1" &> /dev/null
-    oc label namespace "$1" peak.test.project=$2
+    oc create namespace "$1" > /dev/null
+    oc label namespace "$1" peak.test.project=$2 > /dev/null
 }
 
 function make_project() {
@@ -59,6 +58,7 @@ function make_project() {
         set +e
         if [ "$proj" == "" ]; then
             proj=$(random_name $1)
+	    echo "Creating namespace $proj"
             make_project_body $proj $1
         fi
         set -e
@@ -66,17 +66,18 @@ function make_project() {
 }
 
 function go_to_project() {
+    local proj=
     if [ "$OCP" -eq 0 ]; then
-	local proj
 	proj=$(find_project $1)
         set +e
         if [ "$proj" == "" ]; then
             proj=$(random_name $1)
             make_project_body $proj $1
         fi
-	oc project $proj
+	oc project $proj > /dev/null
         set -e
     fi
+    echo $proj
 }
 
 function del_project() {
@@ -99,6 +100,7 @@ function clean_project() {
         set +e
         if [ "$proj" == "" ]; then
 	    proj=$(random_name $1)
+	    echo "Creating namespace $proj"
 	    make_project_body $proj $1
         else
             echo "Recreating namespace $proj"

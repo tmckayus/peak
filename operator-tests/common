@@ -3,3 +3,9 @@
 MY_SCRIPT=`basename "$0"`
 RESOURCE_DIR=$(readlink -f `dirname "${BASH_SOURCE[0]}"`)/resources
 source ${TEST_DIR}/../test/lib/init.sh
+
+# Set to something other than "true" to turn off stack trace
+OS_USE_STACKTRACE=false
+
+# Set to true to add echos around specially formatted text
+OS_PAD_FORMATTED_TEXT=false

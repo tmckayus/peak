@@ -3,6 +3,9 @@ STARTTIME=$(date +%s)
 output=
 debug=false
 makeproj=true
+errfile=
+verbose=false
+
 
 SCRIPT_DIR=$(readlink -f `dirname "${BASH_SOURCE[0]}"`)
 TEST_DIR=$SCRIPT_DIR/operator-tests
@@ -18,16 +21,18 @@ function help() {
     echo
     echo "Options:"
     echo "  -h       Print this help message"
-    echo "  -f FILE  Redirect all output to FILE"
+    echo "  -f FILE  Redirect output to FILE rather than console, includes errors if -e is not set"
+    echo "  -e FILE  Record errors to FILE rather than console or log file"
     echo "  -d       Debug, set -x (large amount of output)"
     echo "  -p       Do not create a new project per test directory"
+    echo "  -v       Verbose, include detailed logs for passing tests (default is detailed logs for failed tests)."
     echo
     echo "Optional arguments:"
     echo "  regexp   Only run test files whose absolute path matches regexp"
     echo
 }
 
-while getopts dphf: option; do
+while getopts vdphf:e: option; do
     case $option in
         h)
             help
@@ -36,21 +41,33 @@ while getopts dphf: option; do
 	f)
 	    output=$OPTARG
 	    ;;
+	e)
+	    errfile=$OPTARG
+	    ;;
         d)
             debug=true
             ;;
         p)
             makeproj=false
             ;;
+	v)
+	    verbose=true
+	    ;;
         *)
             ;;
     esac
 done
 shift $((OPTIND-1))
 
+# Redirect stdout/stderr to output file if set
 if [ -n "$output" ]; then
     exec > ${output}
     exec 2>&1
+fi
+
+# Truncate the error log file if set
+if [ -n "$errfile" ]; then
+    : > $errfile
 fi
 
 if [ "$debug" == "true" ]; then
@@ -98,24 +115,20 @@ function find_tests() {
     done
 
     if [ "${#selected_tests[@]}" -eq 0 ]; then
-        os::log::info "No tests were selected by regex in "${1}
         return 1
     else
         echo "${selected_tests[@]}"
     fi
 }
 
-
 if [ "$makeproj" == "true" ]; then
     set_curr_project
 fi
 
+logfile=$(mktemp)
 failed_list=""
-failed=false
 dirs=($(find "${TEST_DIR}" -mindepth 1 -type d -not -path "./resources*"))
 for dir in "${dirs[@]}"; do
-
-    failed_dir=false
 
     # Get the list of test files in the current directory
     set +e
@@ -135,22 +148,36 @@ for dir in "${dirs[@]}"; do
         continue
     fi
 
-    echo "++++++ ${dir}"
+    currproj=
     if [ "$makeproj" == "true" ]; then
-        go_to_project $(basename $dir)
+        currproj=$(go_to_project $(basename $dir))
+        # currproj is just a string for the summary line
+        currproj=" ($currproj)"
     fi
 
     for test in "${tests[@]}"; do
-        echo
-        echo "++++ ${test}"
-        ${test} &
+        ${test} > $logfile 2 >&1 &
         PID=$!
+        set +e
         wait $PID
-        if [ "$?" -ne 0 ]; then
-            echo "failed: ${test}"
-            failed=true
-            failed_dir=true
+        res=$?
+        set -e
+        if [ "$res" -ne 0 ]; then
             failed_list=$failed_list'\n\t'$test
+
+	    # If errfile is set, write failure log there, otherwise use stdout
+            if [ -n "$errfile" ]; then
+                os::text::print_red "failed: ${test}$currproj" >> $errfile
+                cat $logfile >> $errfile
+	    else
+                os::text::print_red "failed: ${test}$currproj"
+                cat $logfile
+            fi
+        else
+	    os::text::print_green "passed: ${test}$currproj"
+	    if [ "$verbose" == "true" ]; then
+		cat $logfile
+	    fi
         fi
     done
 done
@@ -159,8 +186,9 @@ if [ "$makeproj" == "true" ]; then
     restore_curr_project
 fi
 
-if [ "$failed" == true ]; then
-    echo "One or more tests failed:"
+if [ -n "$failed_list" ]; then
+    os::text::print_red "One or more tests failed:"
     echo -e $failed_list'\n'
     exit 1
 fi
+rm $logfile
