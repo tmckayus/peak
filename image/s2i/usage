@@ -1,0 +1,51 @@
+#!/bin/bash
+
+function commandhelp() {
+    echo "Default command for s2i-generated image"
+    echo
+    echo "  The default command for the generated image includes a signal handler and"
+    echo "  runs /opt/peak/run.sh with defaults (see https://github.com/tmckayus/peak)"
+    echo
+    echo "  Invoke /usr/libexec/s2i/run explicitly to set options for run.sh, for example"
+    echo "  set the container command to"
+    echo
+    echo "    /usr/libexec/s2i/run -v"
+    echo
+    echo "Scorecard command usage: scorecard [-i] [regexp]"
+    echo
+    echo "  -p       Allow the test runner to use a new project for each directory level in the test repository."
+    echo "           The default for the test runner is a project per directory, however operator-sdk scorecard behavior"
+    echo "           is to run all tests in the same namespace set in the 'operator-sdk scorecard' command so that is"
+    echo "           what this script does by default."
+    echo
+    echo "  regexp  Extended regular expression as supported by grep, matched against the"
+    echo "          relative path names of the tests in $OPENSHIFT_BUILD_SOURCE."
+    echo "          If no regexp is specified, all tests will be run."
+    echo
+}
+
+if [ -n "$OPENSHIFT_BUILD_SOURCE" ]; then
+    echo
+    echo "This test image was built from $OPENSHIFT_BUILD_SOURCE, commit $OPENSHIFT_BUILD_COMMIT."
+    echo
+    echo "It uses https://github.com/tmckayus/peak to run tests from the repository"
+    echo "(see the peak repository README.md for information on the kinds of tests supported)."
+    echo
+    echo "It can generate test results consumable by the operator-sdk 'scorecard' command"
+    echo "(see https://sdk.operatorframework.io/docs)."
+    echo
+    commandhelp
+else
+   echo
+   echo "This s2i builder will generate an image for running tests using https://github.com/tmckayus/peak"
+   echo "(see the peak repository README.md for information on the kinds of tests supported)."
+   echo
+   echo "The test image can generate results consumable by the operator-sdk 'scorecard' command"
+   echo "(see https://sdk.operatorframework.io/docs)."
+   echo 
+   echo "It takes a test repository as an input source, for example"
+   echo
+   echo "  oc new-build quay.io/tmckayus/peak~https://github.com/tmckayus/rad-spark-sample-tests --strategy=source --to-docker=true --to=quay.io/tmckayus/radtest:latest"
+   echo
+   commandhelp 
+fi

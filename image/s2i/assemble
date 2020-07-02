@@ -1,0 +1,10 @@
+#!/bin/bash
+if [ -n "$OPENSHIFT_BUILD_SOURCE" ]; then
+    # Use the name of the git repo as the top-level test dir
+    dirname=$(basename "$OPENSHIFT_BUILD_SOURCE")
+else
+    # If this is a binary build, just generate a random id to create a dir
+    dirname=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 6 | head -n 1)
+fi
+mkdir /opt/peak/operator-tests/$dirname
+cp -r /tmp/src/* /opt/peak/operator-tests/$dirname

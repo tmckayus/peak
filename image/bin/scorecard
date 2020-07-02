@@ -1,0 +1,122 @@
+#!/bin/bash
+
+state="fail"
+suggestions=
+multiproject=false
+
+function output {
+    # NAME, DESCRIPTION, and CRNAME are expected to be set in the environment
+    # If not we can at least create a default for the description
+    if [ -z "$DESCRIPTION" ]; then
+        if [ -n "$OPENSHIFT_BUILD_SOURCE" ]; then
+	    DESCRIPTION="$OPENSHIFT_BUILD_SOURCE"
+        fi
+        if [ -n "$OPENSHIFT_BUILD_COMMIT" ]; then
+	    DESCRIPTION+=" commit: $OPENSHIFT_BUILD_COMMIT"
+        fi
+    fi
+    if [ -z "$TESTNAME" ]; then
+        if [ -n "$OPENSHIFT_BUILD_SOURCE" ]; then
+            TESTNAME=$(basename "$OPENSHIFT_BUILD_SOURCE")
+        fi
+    fi
+    log=$(cat /opt/peak/log.txt | base64 -w 0)
+    errors=$(cat /opt/peak/errors.txt | base64 -w 0)
+    cat <<- EOF
+	{
+	        "results": [
+	            {
+	                "name": "$TESTNAME",
+	                "state": "$state",
+	                "errors": ["$errors"],
+	                "suggestions": ["$suggestions"],
+	                "log": "$log"
+	            }
+	        ]
+	}
+	EOF
+}
+
+trap handle_term TERM INT
+function handle_term {
+    local cnt
+    local killed=1
+    if [ -n "$PID" ]; then
+        kill -TERM $PID
+        for cnt in {1..10}
+        do
+            kill -0 $PID >/dev/null 2>&1
+            if [ "$?" -ne 0 ]; then
+                killed=0
+                break
+            else
+                sleep 1
+            fi
+        done
+        if [ "$killed" -ne 0 ]; then
+            kill -9 $PID
+        fi
+        wait $PID
+    fi
+    suggestions="The tests were terminated early with a signal and did not necessarily fail. Use base64 -d' to view the log."
+    output
+    exit 0
+}
+
+function usage() {
+    echo "usage: scorecard [OPTIONS] [regexp]"
+    echo
+    echo "The scorecard wrapper runs configured tests and produces JSON results for consumption by operator-sdk scorecard."
+    echo
+    echo "Options:"
+    echo "  -h       Print this help message"
+    echo "  -p       Allow the test runner to use a new project for each directory level in the test repository."
+    echo "           The default for the test runner is a project per directory, however operator-sdk scorecard behavior"
+    echo "           is to run all tests in the same namespace set in the 'operator-sdk scorecard' command so that is"
+    echo "           what this script does by default."
+    echo 
+    echo "Optional arguments:"
+    echo "  regexp   Only run test files whose absolute path matches regexp"
+    echo
+    echo "The scorecard wrapper is meant to be used in OpenShift, but it can be run on a local machine as well."
+    echo "Clone and initialize https://github.com/tmckayus/peak under /opt on your local machine "
+    echo "as if you were going to use it to run tests directly (see the peak README.md). Then simply run 'scorecard'."
+    echo
+}
+
+while getopts :hp option; do
+    case $option in
+	h)
+	    usage
+	    exit
+	    ;;
+        p)
+            multiproject=true
+            ;;
+        *)
+            ;;
+    esac
+done
+shift $((OPTIND-1))
+
+# Run tests in the background so that we can still get a term signal
+projopt=""
+if [ "$multiproject" == "false" ]; then
+    projopt="-p"
+fi
+
+/opt/peak/run.sh -f /opt/peak/log.txt -e /opt/peak/errors.txt $projopt $@ &
+PID=$!
+wait $PID
+pidres=$?
+
+# In the interative case, we don't care about the scorecard output,
+# we just run the tests and log to the console
+if [ "$pidres" -eq 0 ]; then
+    suggestions="All tests passed. Use 'base64 -d' to view the logs."
+    state="pass"
+else
+    suggestions="Some tests failed. Use base64 -d' to view the logs."
+    state="fail"
+fi    
+output
