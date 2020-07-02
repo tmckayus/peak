@@ -1,7 +1,7 @@
 # peak test runner framework
 
 This test runner is based on the radanalyticsio openshift-test-kit
-repository, which in turn is taken from a library of bash test functions
+repository, which in turn is based on a library of bash test functions
 at https://github.com/openshift/origin/tree/master/hack/lib.
 
 In a nutshell, the test functions allow you to execute a command
@@ -12,13 +12,18 @@ be managed from a CLI.
 
 The peak repository includes it's own custom *setup.sh* and *run.sh*
 scripts tailored for testing OpenShift operators and/or OpenShift
-applications launched from templates or manifests. However, it
-can also be used as a general test runner for things outside
-of OpenShift -- if there is no current OpenShift login, it will not
-attempt to execute any OpenShift setup commands.
+applications launched from templates or manifests. There is a
+Dockerfile for an s2i builder that will produce a test image
+based on the *run.sh* script and a test repo. Test images can be used
+standalone or with the operator-sdk scorecard command (see below).
 
-It also is designed to pull in tests for specified git repositories,
-so that tests for particular operators can be maintained separately.
+The test runner can also be used for things outside of OpenShift -- if
+there is no current OpenShift login and it is run from the commandline,
+it will not attempt to execute any OpenShift setup commands.
+
+It is designed to pull in tests from specified git repositories,
+so that tests for particular operators can be maintained separately
+from the operator.
 
 ## initializing the git submodule in the test repository
 
@@ -26,6 +31,104 @@ When you first clone the test repository, you need to do this
 
 ```bash
 git submodule update --init
+```
+
+## Building test images with s2i
+
+The s2i image can be built from the root of this repository, for example
+
+```bash
+podman build . -t quay.io/tmckayus/peaks2i
+podman push quay.io/tmckayus/peaks2i
+```
+
+Then a test image for a particular repository can be generated in OpenShift like this
+
+```
+oc new-build quay.io/tmckayus/peaks2i~https://github.com/tmckayus/rad-spark-sample-tests --strategy=source --to-docker=true --to=quay.io/tmckayus/testimage
+```
+
+Once built you can display help for the image like this
+
+```
+podman run --rm -t quay.io/tmckayus/testimage usage
+```
+
+### Running test image standalone
+
+The test image by default will run all of the included tests with default arguments to run.sh.
+Just launch the image in a Kubernetes pod with no explicit command and check the pod logs.
+
+To modify the options passed to run.sh, set the command explicitly in the container spec
+and specify the options, for example
+
+```bash
+spec:
+  containers:
+  - image: quay.io/tmckayus/testpeak:4
+    imagePullPolicy: Always
+    command:
+    - /usr/libexec/s2i/run
+    - -p
+```
+
+### Running test image from operator-sdk alpha scorecard
+
+Visit https://sdk.operatorframework.io/docs for complete information on using a test image with the scorecard command,
+including how to create a real bundle directory, etc.
+
+Here is a quickstart, assuming you have built (or downloaded) the lastest *operator-sdk*
+
+Create a config.yaml file for scorecard like this
+
+```bash
+tests:
+- name: "mytest"
+  image: quay.io/tmckayus/testimage
+  entrypoint: 
+  - scorecard
+  labels:
+    suite: peak
+```
+
+and then run the test like this (*somedir* just has to exist and can be empty, ideally it's a bundle directory as described by the docs)
+
+```bash
+operator-sdk alpha scorecard -n somenamespace --selector=suite=peak -c ./config.yaml -w 300s -o json somedir
+
+# wait for tests to complete ...
+
+{
+  "spec": {
+    "image": ""
+  },
+  "status": {
+    "results": [
+      {
+        "name": "rad-spark-sample-tests",
+        "log": "L29wdC9wZWFrL3Rlc3QvbGliL2J1aWxkL2NvbnN0YW50cy5zaAoKcGFzc2VkOiAvb3B0L3BlYWsvb3BlcmF0b3ItdGVzdHMvcmFkLXNwYXJrLXNhbXBsZS10ZXN0cy90ZXN0LnNoCgovb3B0L3BlYWsvcnVuLnNoIHRvb2sgMzcgc2Vjb25kcwpbSU5GT10gRXhpdGluZyB3aXRoIDAK",
+        "state": "pass",
+        "errors": [
+          ""
+        ],
+        "suggestions": [
+          "All tests passed. Use 'base64 -d' to view the logs."
+        ]
+      }
+    ]
+  }
+}
+```
+
+To see the log in plain text, pipe the log into 'base64 -d' like this
+
+```bash
+$ echo L29wdC9wZWFrL3Rlc3QvbGliL2J1aWxkL2NvbnN0YW50cy5zaAoKcGFzc2VkOiAvb3B0L3BlYWsvb3BlcmF0b3ItdGVzdHMvcmFkLXNwYXJrLXNhbXBsZS10ZXN0cy90ZXN0LnNoCgovb3B0L3BlYWsvcnVuLnNoIHRvb2sgMzcgc2Vjb25kcwpbSU5GT10gRXhpdGluZyB3aXRoIDAK | base64 -d
+
+passed: /opt/peak/operator-tests/rad-spark-sample-tests/test.sh
+
+/opt/peak/run.sh took 37 seconds
+[INFO] Exiting with 0
 ```
 
 ## setup.sh script
