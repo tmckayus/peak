@@ -11,7 +11,7 @@ function commandhelp() {
     echo
     echo "    /usr/libexec/s2i/run -v"
     echo
-    echo "Scorecard command usage: scorecard [-i] [regexp]"
+    echo "Scorecard command usage: scorecard [-p] [regexp]"
     echo
     echo "  -p       Allow the test runner to use a new project for each directory level in the test repository."
     echo "           The default for the test runner is a project per directory, however operator-sdk scorecard behavior"
