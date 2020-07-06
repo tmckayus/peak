@@ -156,6 +156,7 @@ for dir in "${dirs[@]}"; do
     fi
 
     for test in "${tests[@]}"; do
+        shortname=${test#${TEST_DIR}/}
         ${test} > $logfile 2 >&1 &
         PID=$!
         set +e
@@ -163,18 +164,18 @@ for dir in "${dirs[@]}"; do
         res=$?
         set -e
         if [ "$res" -ne 0 ]; then
-            failed_list=$failed_list'\n\t'$test
+            failed_list=$failed_list'\n\t'$shortname
 
 	    # If errfile is set, write failure log there, otherwise use stdout
             if [ -n "$errfile" ]; then
-                os::text::print_red "failed: ${test}$currproj" >> $errfile
+                os::text::print_red "failed: $shortname$currproj" >> $errfile
                 cat $logfile >> $errfile
 	    else
-                os::text::print_red "failed: ${test}$currproj"
+                os::text::print_red "failed: $shortname$currproj"
                 cat $logfile
             fi
         else
-	    os::text::print_green "passed: ${test}$currproj"
+	    os::text::print_green "passed: $shortname$currproj"
 	    if [ "$verbose" == "true" ]; then
 		cat $logfile
 	    fi
