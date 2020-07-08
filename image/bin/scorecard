@@ -5,16 +5,7 @@ suggestions=
 multiproject=false
 
 function output {
-    # NAME, DESCRIPTION, and CRNAME are expected to be set in the environment
-    # If not we can at least create a default for the description
-    if [ -z "$DESCRIPTION" ]; then
-        if [ -n "$OPENSHIFT_BUILD_SOURCE" ]; then
-	    DESCRIPTION="$OPENSHIFT_BUILD_SOURCE"
-        fi
-        if [ -n "$OPENSHIFT_BUILD_COMMIT" ]; then
-	    DESCRIPTION+=" commit: $OPENSHIFT_BUILD_COMMIT"
-        fi
-    fi
+    # TESTNAME can be set in the environment
     if [ -z "$TESTNAME" ]; then
         if [ -n "$OPENSHIFT_BUILD_SOURCE" ]; then
             TESTNAME=$(basename "$OPENSHIFT_BUILD_SOURCE")

@@ -48,7 +48,13 @@ Then a test image for a particular repository can be generated in OpenShift like
 oc new-build quay.io/tmckayus/peaks2i~https://github.com/tmckayus/rad-spark-sample-tests --strategy=source --to-docker=true --to=quay.io/tmckayus/testimage
 ```
 
-Once built you can display help for the image like this
+A subdirectory in the test repository can be specified as a relative path with the SOURCE_PATH environment variable, for example
+
+```
+oc new-build quay.io/tmckayus/peak~https://github.com/tmckayus/my-repo -e SOURCE_DIR=path/to/tests --strategy=source --to-docker=true --to=quay.io/tmckayus/mytest:latest"
+```
+
+Once built you can display help for the image with podman
 
 ```
 podman run --rm -t quay.io/tmckayus/testimage usage
@@ -123,6 +129,9 @@ operator-sdk alpha scorecard -n somenamespace --selector=suite=peak -c ./config.
   }
 }
 ```
+
+Note that by default the results will list the repository name as the name of the test. This can be overridden during image creation by adding '-e TESTNAME=desiredname' to the build command.
+
 
 To see the log in plain text, pipe the log into 'base64 -d' like this
 

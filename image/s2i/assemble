@@ -1,5 +1,14 @@
 #!/bin/bash
-if [ -n "$OPENSHIFT_BUILD_SOURCE" ]; then
+
+# If someone has specified a SOURCE_DIR value then use that
+# as the relative path in /tmp/src and the source for dirname
+from="/tmp/src/*"
+if [ -n "$SOURCE_DIR" ]; then
+    dirname=$(basename $SOURCE_DIR)
+    SOURCE_DIR=${SOURCE_DIR#/}
+    SOURCE_DIR=${SOURCE_DIR%/}
+    from="/tmp/src/$SOURCE_DIR/*"
+elif [ -n "$OPENSHIFT_BUILD_SOURCE" ]; then
     # Use the name of the git repo as the top-level test dir
     dirname=$(basename "$OPENSHIFT_BUILD_SOURCE")
 else
@@ -7,4 +16,4 @@ else
     dirname=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 6 | head -n 1)
 fi
 mkdir /opt/peak/operator-tests/$dirname
-cp -r /tmp/src/* /opt/peak/operator-tests/$dirname
+cp -r $from /opt/peak/operator-tests/$dirname

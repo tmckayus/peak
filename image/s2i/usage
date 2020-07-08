@@ -47,5 +47,11 @@ else
    echo
    echo "  oc new-build quay.io/tmckayus/peak~https://github.com/tmckayus/rad-spark-sample-tests --strategy=source --to-docker=true --to=quay.io/tmckayus/radtest:latest"
    echo
-   commandhelp 
+   echo "A subdirectory in the test repository can be specified as a relative path with the SOURCE_PATH environment variable, for example"
+   echo
+   echo "  oc new-build quay.io/tmckayus/peak~https://github.com/tmckayus/my-repo -e SOURCE_DIR=path/to/tests --strategy=source --to-docker=true --to=quay.io/tmckayus/mytest:latest"
+   echo
+   echo "By default the JSON results for scorecard will list the repository name as the name of the test. To override the test name add '-e TESTNAME=desiredname' to the build command."
+   echo
+   commandhelp
 fi
