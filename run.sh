@@ -5,7 +5,7 @@ debug=false
 makeproj=true
 errfile=
 verbose=false
-
+interactive=false
 
 SCRIPT_DIR=$(readlink -f `dirname "${BASH_SOURCE[0]}"`)
 TEST_DIR=$SCRIPT_DIR/operator-tests
@@ -23,16 +23,18 @@ function help() {
     echo "  -h       Print this help message"
     echo "  -f FILE  Redirect output to FILE rather than console, includes errors if -e is not set"
     echo "  -e FILE  Record errors to FILE rather than console or log file"
+    echo "  -v       Verbose, include detailed logs for passing tests (default is detailed logs only for failed tests)."
+    echo "  -i       Interactive, send raw logs directly to the console or FILE if -f is set, -e and -v have no effect."
+    echo "           This is useful for test development since realtime logs are printed instead of summary logs."
     echo "  -d       Debug, set -x (large amount of output)"
     echo "  -p       Do not create a new project per test directory"
-    echo "  -v       Verbose, include detailed logs for passing tests (default is detailed logs for failed tests)."
     echo
     echo "Optional arguments:"
     echo "  regexp   Only run test files whose absolute path matches regexp"
     echo
 }
 
-while getopts vdphf:e: option; do
+while getopts ivdphf:e: option; do
     case $option in
         h)
             help
@@ -52,6 +54,9 @@ while getopts vdphf:e: option; do
             ;;
 	v)
 	    verbose=true
+	    ;;
+	i)
+	    interactive=true
 	    ;;
         *)
             ;;
@@ -83,6 +88,30 @@ check_ocp
 
 os::util::environment::setup_time_vars
 
+trap handle_term TERM INT
+function handle_term {
+    local cnt
+    local killed=1
+    if [ -n "$PID" ]; then
+        kill -TERM $PID
+        for cnt in {1..10}
+        do
+            kill -0 $PID >/dev/null 2>&1
+            if [ "$?" -ne 0 ]; then
+                killed=0
+                break
+            else
+                sleep 1
+            fi
+        done
+        if [ "$killed" -ne 0 ]; then
+            kill -9 $PID
+        fi
+        wait $PID
+    fi
+    exit 1
+}
+
 function cleanup()
 {
     out=$?
@@ -95,7 +124,7 @@ function cleanup()
     exit $out
 }
 
-trap "exit" INT TERM
+trap "handle_term" INT TERM
 trap "cleanup" EXIT
 
 function find_tests() {
@@ -157,7 +186,11 @@ for dir in "${dirs[@]}"; do
 
     for test in "${tests[@]}"; do
         shortname=${test#${TEST_DIR}/}
-        ${test} > $logfile 2 >&1 &
+        if [ "$interactive" == "true" ]; then
+            ${test} &
+        else
+            ${test} > $logfile 2 >&1 &
+        fi
         PID=$!
         set +e
         wait $PID
