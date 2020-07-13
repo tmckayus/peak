@@ -1,6 +1,6 @@
 FROM registry.access.redhat.com/ubi8/ubi:latest
 
-RUN dnf install -y wget tar golang bc && dnf clean all
+RUN dnf install -y wget tar golang bc && dnf update -y && dnf clean all
 
 COPY run.sh /opt/peak/
 COPY util /opt/peak/

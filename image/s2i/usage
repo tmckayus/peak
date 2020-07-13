@@ -3,13 +3,14 @@
 function commandhelp() {
     echo "Default command for s2i-generated image"
     echo
-    echo "  The default command for the generated image includes a signal handler and"
-    echo "  runs /opt/peak/run.sh with defaults (see https://github.com/tmckayus/peak)"
+    echo "  The default command for the generated image runs '/opt/peak/run.sh -p'"
+    echo "  This runs all tests in the current project with summary logs."
+    echo "  (see https://github.com/tmckayus/peak)"
     echo
-    echo "  Invoke /usr/libexec/s2i/run explicitly to set options for run.sh, for example"
+    echo "  Invoke /opt/peak/run.sh explicitly to set different options, for example"
     echo "  set the container command to"
     echo
-    echo "    /usr/libexec/s2i/run -v"
+    echo "    /opt/peak/run.sh -p -i"
     echo
     echo "Scorecard command usage: scorecard [-p] [regexp]"
     echo

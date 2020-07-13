@@ -62,11 +62,11 @@ podman run --rm -t quay.io/tmckayus/testimage usage
 
 ### Running test image standalone
 
-The test image by default will run all of the included tests with default arguments to run.sh.
-Just launch the image in a Kubernetes pod with no explicit command and check the pod logs.
+The default command for the test image executes "/opt/peak/run.sh -p". This runs all of the
+included tests in the current project with summary logs. Just launch the image in a Kubernetes pod
+with no explicit command and check the pod logs.
 
-To modify the options passed to run.sh, set the command explicitly in the container spec
-and specify the options, for example
+To use different options, set the command explicitly in the container spec, for example
 
 ```bash
 spec:
@@ -74,8 +74,9 @@ spec:
   - image: quay.io/tmckayus/testpeak:4
     imagePullPolicy: Always
     command:
-    - /usr/libexec/s2i/run
+    - /opt/peak/run.sh
     - -p
+    - -i
 ```
 
 ### Running test image from operator-sdk alpha scorecard
