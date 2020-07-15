@@ -42,9 +42,18 @@ podman build . -t quay.io/tmckayus/peaks2i
 podman push quay.io/tmckayus/peaks2i
 ```
 
-Then a test image for a particular repository can be generated in OpenShift like this
+Then a test image for a particular repository can be generated in OpenShift.
+Just make sure for authenticated repositories that you've created a push secret and
+linked it to the builder service account!
+
+
 
 ```
+# Creating a push secret if you need one
+oc create secret docker-registry secret-push --docker-server=$DOCKER_SERVER --docker-username=$DOCKER_USER --docker-password=$DOCKER_PASSWORD --docker-email=$DOCKER_EMAIL
+oc secret link builder secret-push
+
+# Launching the build
 oc new-build quay.io/tmckayus/peaks2i~https://github.com/tmckayus/rad-spark-sample-tests --strategy=source --to-docker=true --to=quay.io/tmckayus/testimage
 ```
 
